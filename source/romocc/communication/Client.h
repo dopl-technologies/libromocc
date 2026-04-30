@@ -1,6 +1,7 @@
 #ifndef ROMOCC_CLIENT_H
 #define ROMOCC_CLIENT_H
 
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -40,6 +41,13 @@ class ROMOCC_EXPORT Client : public Object
         std::unique_ptr<std::thread> mThread;
         bool mStopThread = false;
         bool mConnected = false;
+
+        // Guards access to mStreamer between sendPackage callers (typically the
+        // main control thread) and the start() reader thread, which drains
+        // mStreamer to keep its TCP receive window open. ZMQ sockets are not
+        // thread-safe; external synchronization is required when the same
+        // socket is touched from multiple threads.
+        std::mutex mStreamerMutex;
 
         void* mStreamer;
         void start();

@@ -59,7 +59,10 @@ bool Client::requestConnect(std::string host, int port)
 
 bool Client::requestDisconnect()
 {
-    zmq_disconnect(mStreamer, ("tcp://" + mConnectionInfo.host + ":" + std::to_string(mConnectionInfo.port)).c_str());
+    {
+        std::lock_guard<std::mutex> lock(mStreamerMutex);
+        zmq_disconnect(mStreamer, ("tcp://" + mConnectionInfo.host + ":" + std::to_string(mConnectionInfo.port)).c_str());
+    }
     mStopThread = true;
     mThread->join();
     mConnected = false;
@@ -70,6 +73,7 @@ bool Client::sendPackage(std::string package)
 {
     uint8_t id [256];
     size_t id_size = 256;
+    std::lock_guard<std::mutex> lock(mStreamerMutex);
     zmq_getsockopt(mStreamer, ZMQ_IDENTITY, &id, &id_size);
     zmq_send(mStreamer, id, id_size, ZMQ_SNDMORE);
     zmq_send(mStreamer, package.c_str(), strlen(package.c_str()), 0);
@@ -107,6 +111,18 @@ void Client::start()
         auto packetLength = getMessageSize(buffer);
         if(packetLength>0 && packetLength<2048)
             zmq_send(publisher, buffer, packetLength, 0);
+
+        // Drain the URScript-command socket. UR5 writes runtime status / acks
+        // on this connection in addition to the dedicated state-stream
+        // connection. If we never read them, the kernel receive buffer fills,
+        // the TCP window collapses to 0, UR5 eventually RSTs the connection,
+        // and the next zmq_send wedges in ZMQ's transparent-reconnect path —
+        // long enough to stall a 125 Hz control loop.
+        {
+            std::lock_guard<std::mutex> lock(mStreamerMutex);
+            uint8_t scratch[2048];
+            while(zmq_recv(mStreamer, scratch, sizeof(scratch), ZMQ_DONTWAIT) >= 0) { }
+        }
     }
 
     zmq_close(publisher);
