@@ -14,7 +14,7 @@ include(cmake/Macros.cmake)
 option(ROMOCC_BUILD_TESTS "Build tests." ON)
 option(ROMOCC_BUILD_EXAMPLES "Build examples." ON)
 option(ROMOCC_BUILD_URSIMULATOR "Download and install UR Simulator" OFF)
-option(ROMOCC_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
+option(ROMOCC_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
 #### Set build type
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
